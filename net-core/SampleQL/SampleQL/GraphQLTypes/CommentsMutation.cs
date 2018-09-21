@@ -1,20 +1,21 @@
-﻿using GraphQL.Types;
+﻿using GraphQL.Resolvers;
+using GraphQL.Subscription;
+using GraphQL.Types;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace SampleQL.GraphQLTypes
 {
     public class CommentsMutation : ObjectGraphType
     {
-        public List<Comment> Comments { get; set; }
-
-        public CommentsMutation()
+        private readonly GoodReadsService service;
+        
+        public CommentsMutation(GoodReadsService goodReadsService)
         {
-            Name = "CommentsMutations";
+            service = goodReadsService;
 
-            Comments = new List<Comment>();
+            Name = "CommentsMutations";
+            
 
             Field<CommentType>(
                 "addComment",
@@ -25,15 +26,36 @@ namespace SampleQL.GraphQLTypes
                 resolve: context =>
                 {
                     Comment comment = context.GetArgument<Comment>("comment");
-                    Comments.Add(comment);
-                    comment.Id = Comments.Count;
-                    return comment;
+                    comment.Id = service.AllComments.Count + 1;
+                     
+                    return service.AddComment(comment); 
                 });
         }
     }
 
     public class CommentsSubscriptions : ObjectGraphType
     {
+        private readonly GoodReadsService service;
 
+        public CommentsSubscriptions(GoodReadsService goodReadsService)
+        {
+            service = goodReadsService;
+
+            AddField(new EventStreamFieldType
+            {
+                Name = "commentAddedForBook",
+                Type = typeof(CommentType),
+                Arguments= new QueryArguments()
+                {
+                    new QueryArgument<NonNullGraphType<IntGraphType>> { Name = "bookId"}
+                },
+                Resolver = new FuncFieldResolver<Comment>(ResolveComment),
+                Subscriber = new EventStreamResolver<Comment>(Subscribe)
+            });
+        }
+
+        private Comment ResolveComment(ResolveFieldContext context) => context.Source as Comment;
+
+        private IObservable<Comment> Subscribe(ResolveEventStreamContext context) => service.Comments();
     }
 }

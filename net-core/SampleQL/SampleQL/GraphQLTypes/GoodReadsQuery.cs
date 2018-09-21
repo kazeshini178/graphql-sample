@@ -4,7 +4,7 @@ namespace SampleQL.GraphQLTypes
 {
     public class GoodReadsQuery : ObjectGraphType
     {
-        GoodReadsService service;
+        private GoodReadsService service;
 
         public GoodReadsQuery(GoodReadsService goodReadsService)
         {
@@ -26,7 +26,14 @@ namespace SampleQL.GraphQLTypes
                     }
                 ),
                 resolve: context => service.GetBook(context.GetArgument<int>("id")));
-            Field<CommentType>("comment");
+            Field<ListGraphType<CommentType>>("comments",
+                arguments: new QueryArguments(
+                    new QueryArgument<IntGraphType>()
+                    {
+                        Name = "bookId"
+                    }
+                ),
+                resolve: context=> service.GetCommentsForBook(context.GetArgument<int>("bookId")));
         }
     }
 }

@@ -1,13 +1,38 @@
 import React, { Component } from 'react';
 import logo from './logo.svg';
 import './App.css';
-import ApolloClient, { gql } from 'apollo-boost';
+import { gql, HttpLink, ApolloLink, InMemoryCache } from 'apollo-boost';
+import { ApolloClient } from 'apollo-client';
+import { WebSocketLink } from 'apollo-link-ws'
 
-import { Query, ApolloProvider } from 'react-apollo';
+import { Query, ApolloProvider, Subscription } from 'react-apollo';
 
-var apolloClient = new ApolloClient({
-  uri: 'http://localhost:55432/graphql'
-});;
+
+const hasSubscriptionOperation = ({ query: { definitions } }) =>
+  definitions.some(
+    ({ kind, operation }) =>
+      kind === 'OperationDefinition' && operation === 'subscription',
+  )
+
+const httpLink = new HttpLink({
+  uri: 'http://localhost:55432/graphql',
+  // credentials: 'omit'
+});
+
+const wsLink = new WebSocketLink({
+  uri: 'ws://localhost:55432/graphql',
+  options: {
+    reconnect: true
+  }
+});
+
+const link = ApolloLink.split(hasSubscriptionOperation, wsLink, httpLink);
+
+const apolloClient = new ApolloClient({
+  link,
+  cache: new InMemoryCache()
+  // uri: 'http://localhost:55432/graphql'
+});
 
 class App extends Component {
 
@@ -27,7 +52,7 @@ class App extends Component {
   }
 
   render() {
-    const query = gql`query ($bookId:Int){
+    const query = gql`query ($bookId:Int!){
                         book(id:$bookId){
                           title
                           authors{
@@ -38,6 +63,12 @@ class App extends Component {
                           publicationDate          
                         }
                       }`;
+    const subscription = gql`subscription commentsForBook($bookId: Int!){
+                                commentAddedForBook(bookId:$bookId){
+                                  commentDetails
+                                  rating
+                                }
+                            }`;
     const { bookId } = this.state;
 
     return (
@@ -47,15 +78,17 @@ class App extends Component {
             <img src={logo} className="App-logo" alt="logo" />
             <h1 className="App-title">Welcome to React</h1>
           </header>
-          <form onSubmit={this.getBook.bind(this)}>
-            <div className="input-group">
-              <span className="input-group-label">Book ID</span>
-              <input ref={c => this.searchBox = c} className="input-group-field" type="number" />
-              <div className="input-group-button">
-                <button type="submit" className="button success" ><i className="fas fa-search"></i></button>
+          <div className="grid-container">
+            <form onSubmit={this.getBook.bind(this)}>
+              <div className="input-group">
+                <span className="input-group-label">Book ID</span>
+                <input ref={c => this.searchBox = c} className="input-group-field" defaultValue={bookId} type="number" />
+                <div className="input-group-button">
+                  <button type="submit" className="button success" ><i className="fas fa-search"></i></button>
+                </div>
               </div>
-            </div>
-          </form>
+            </form>
+          </div>
           <Query query={query} variables={{ bookId }}>
             {
               ({ loading, error, data }) => {
@@ -86,9 +119,18 @@ class App extends Component {
                     </div>
                     <div className="cell large-5">
                       <h5>Comments</h5>
-                      
+
                       <div className="callout">
                       </div>
+                      <Subscription subscription={subscription} variables={{ bookId }}>
+                        {
+                          ({ loading, error, data }) => {
+                            console.log(loading, error, data)
+                            return <div className="callout">
+
+                            </div>
+                          }
+                        }</Subscription>
                     </div>
                   </div>
                 </div>

@@ -1,17 +1,25 @@
 ﻿using RestSharp;
 using SampleQL.DataTypes;
+using SampleQL.GraphQLTypes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
 using System.Threading.Tasks;
 
 namespace SampleQL
 {
     public class GoodReadsService
     {
-        RestClient client;
+        private readonly ISubject<Comment> _commentStream = new ReplaySubject<Comment>(5);
+
+        private RestClient client;
+
+        public List<Comment> AllComments { get; } = new List<Comment>();
+
         public GoodReadsService()
-        { 
+        {
             client = new RestClient("https://www.goodreads.com/");
             client.DefaultParameters.Clear();
 
@@ -30,6 +38,17 @@ namespace SampleQL
             GoodreadsResponse result = await GetResourceAsync($"book/show/{id}");
             return result.Book;
         }
+
+        public Comment AddComment(Comment comment)
+        {
+            AllComments.Add(comment);
+            _commentStream.OnNext(comment);
+            return comment;
+        }
+
+        public Comment GetComment(int id) => AllComments.First(c => c.Id == id);
+        public IEnumerable<Comment> GetCommentsForBook(int bookId) => AllComments.Where(c => c.BookId == bookId);
+        public IObservable<Comment> Comments() => _commentStream.AsObservable();
 
         private async Task<GoodreadsResponse> GetResourceAsync(string resourcePath)
         {

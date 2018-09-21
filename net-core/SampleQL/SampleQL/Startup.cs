@@ -61,9 +61,9 @@ namespace SampleQL
                 app.UseDeveloperExceptionPage();
             }
 
-            app.UseWebSockets()
-                .UseGraphQLWebSockets<QLSchema>()
-                .UseGraphQL<QLSchema>();
+            app.UseWebSockets();
+            app.UseGraphQLWebSockets<QLSchema>("/graphql");
+            app.UseGraphQL<QLSchema>("/graphql");
 
             app.UseMvc();
         }
